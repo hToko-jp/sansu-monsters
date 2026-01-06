@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>引き算の勇者 - Calculation Quest</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&family=Press+Start+2P&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="game-container">
+        <header class="game-header">
+            <div class="level-indicator">LEVEL <span id="level-display">1</span></div>
+            <button id="view-ranking-btn" class="mini-btn">👑 ランキング</button>
+            <div class="score-indicator">SCORE: <span id="score-display">0</span></div>
+        </header>
+
+        <main class="battle-arena">
+            <!-- Monster Area -->
+            <div class="entity-zone monster-zone">
+                <div class="hp-bar-container">
+                    <div class="hp-bar-fill" id="monster-hp-bar" style="width: 100%;"></div>
+                    <span class="hp-text"><span id="monster-hp">100</span> / <span id="monster-max-hp">100</span></span>
+                </div>
+                <div class="entity-visual" id="monster-visual">
+                    <div class="monster-emoji">👾</div>
+                </div>
+                <div class="entity-name" id="monster-name">スライム</div>
+                <div class="damage-overlay" id="monster-damage"></div>
+            </div>
+
+            <!-- Hero Area -->
+            <div class="entity-zone hero-zone">
+                <div class="damage-overlay" id="hero-damage"></div>
+                <div class="entity-visual" id="hero-visual">
+                    <div class="hero-emoji">🗡️</div>
+                </div>
+                <div class="hp-bar-container">
+                    <div class="hp-bar-fill hero-hp" id="hero-hp-bar" style="width: 100%;"></div>
+                    <span class="hp-text"><span id="hero-hp">100</span> / <span id="hero-max-hp">100</span></span>
+                </div>
+                <div class="entity-name">ゆうしゃ (あなた)</div>
+            </div>
+        </main>
+
+        <section class="game-log" id="game-log">
+            <p>モンスター が あらわれた！</p>
+        </section>
+
+        <footer class="control-panel">
+            <button id="attack-btn" class="action-btn">こうげき (計算)</button>
+        </footer>
+    </div>
+
+    <!-- Math Modal -->
+    <div class="modal-overlay hidden" id="math-modal">
+        <div class="modal-content">
+            <h2>もんだい！</h2>
+            <div class="math-problem" id="math-problem-text">10 - 3 = ?</div>
+            <div class="answer-input-container">
+                <input type="number" id="answer-input" placeholder="答え" autocomplete="off">
+                <button id="submit-answer-btn">決定</button>
+            </div>
+            <p class="modal-hint">せいかいして ダメージを あたえよう！</p>
+        </div>
+    </div>
+
+    <!-- Ending Modal -->
+    <div class="modal-overlay hidden" id="ending-modal">
+        <div class="modal-content ending-content">
+            <h1>🎉 GAME CLEAR! 🎉</h1>
+            <div class="ending-visual">🏆</div>
+            <p>おめでとう！<br>すべての モンスター を<br>たおした！</p>
+            <p class="final-score">SCORE: <span id="final-score-display">0</span></p>
+
+            <!-- Ranking UI -->
+            <div id="ranking-input-area">
+                <input type="text" id="player-name" placeholder="なまえを いれてね" maxlength="10">
+                <button id="save-score-btn" class="action-btn save-btn">ランキングに ほうこく</button>
+            </div>
+
+            <div id="ranking-board" class="hidden">
+                <h3>👑 ランキング TOP 10 👑</h3>
+                <ul id="leaderboard-list" class="leaderboard-style">
+                    <!-- Scores will be injected here -->
+                </ul>
+                <button onclick="location.reload()" class="action-btn restart-btn">さいしょから</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Standalone Ranking Modal -->
+    <div class="modal-overlay hidden" id="ranking-only-modal">
+        <div class="modal-content">
+            <h3>👑 ランキング TOP 10 👑</h3>
+            <ul id="standalone-leaderboard-list" class="leaderboard-style">
+                <!-- Scores will be injected here -->
+            </ul>
+            <button id="close-ranking-btn" class="action-btn">とじる</button>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (v8 compat for local file execution) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
