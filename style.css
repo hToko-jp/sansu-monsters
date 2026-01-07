@@ -83,13 +83,14 @@ body {
 .battle-arena {
     flex: 1 1 auto;
     /* Allow shrinking if needed */
-    min-height: 0;
-    /* Critical: allows flex child to shrink below content size */
+    min-height: 250px;
+    /* Reduced minimum to fit better */
     display: flex;
     flex-direction: column;
     justify-content: space-around;
     align-items: center;
-    padding: 1rem;
+    padding: 0.75rem;
+    /* Reduced padding */
 }
 
 .entity-zone {
@@ -107,8 +108,8 @@ body {
 }
 
 .monster-emoji {
-    font-size: clamp(5rem, 20vh, 10rem);
-    /* Responsive sizing */
+    font-size: clamp(4rem, 15vh, 8rem);
+    /* Reduced for better fit */
     filter: drop-shadow(0 0 20px rgba(162, 155, 254, 0.6));
     animation: float 3s ease-in-out infinite;
 }
@@ -119,14 +120,15 @@ body {
 }
 
 .hero-emoji {
-    font-size: clamp(3rem, 12vh, 6rem);
-    /* Responsive sizing */
+    font-size: clamp(2.5rem, 10vh, 5rem);
+    /* Reduced for better fit */
     filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));
 }
 
 /* Base Visuals */
 .entity-visual {
-    margin: 1rem 0;
+    margin: 0.5rem 0;
+    /* Reduced margin */
 }
 
 .entity-name {
@@ -166,31 +168,29 @@ body {
 
 /* Logs */
 .game-log {
-    flex: 0 1 auto;
-    /* Can shrink if needed */
-    height: clamp(80px, 14vh, 140px);
-    /* Increased min height to fit 2 messages */
+    flex: 0 0 auto;
+    /* Fixed size */
+    height: 72px;
+    /* Exact height for 2 messages */
     background: rgba(0, 0, 0, 0.6);
     margin: 0.5rem;
     border-radius: 8px;
-    padding: 0.6rem 0.5rem 0.4rem 0.5rem;
-    /* Optimized padding for 2-line display */
-    overflow-y: auto;
+    padding: 0.5rem 0.5rem 0.4rem 0.5rem;
+    /* Precise padding */
+    overflow: hidden;
+    /* Hide overflow to show exactly 2 lines */
     border: 1px solid var(--glass-border);
     font-size: 0.8rem;
-    /* Reduced from 0.9rem for more space */
     line-height: 1.3;
-    /* Tightened from 1.4 for better fit */
     display: flex;
     flex-direction: column-reverse;
 }
 
 .game-log p {
-    margin: 0.25rem 0;
-    /* Optimized margin */
+    margin: 0.2rem 0;
+    /* Tightened margin */
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    padding-bottom: 0.25rem;
-    /* Optimized padding */
+    padding-bottom: 0.2rem;
 }
 
 /* Control Panel */
