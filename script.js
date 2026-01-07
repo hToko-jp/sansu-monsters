@@ -1,419 +1,513 @@
-// Initialize Database Reference
-// (Firebase is already initialized in firebase-config.js)
+// Firebase Initialize (Config is loaded from external firebase-config.js)
+firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-class AudioController {
-    constructor() {
-        this.ctx = null;
-        this.initialized = false;
+class Entity {
+    constructor(name, maxHp, elementIdPrefix) {
+        this.name = name;
+        this.maxHp = maxHp;
+        this.hp = maxHp;
+        this.prefix = elementIdPrefix;
+        this.updateUI();
     }
 
-    init() {
-        if (!this.initialized) {
-            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-            this.initialized = true;
+    takeDamage(amount) {
+        this.hp -= amount;
+        if (this.hp < 0) this.hp = 0;
+        this.updateUI();
+
+        // Trigger damage visuals
+        this.showDamageNumber(amount);
+
+        // Shake effect
+        const visual = document.getElementById(`${this.prefix}-visual`);
+        visual.classList.remove('shake');
+        void visual.offsetWidth; // Trigger reflow
+        visual.classList.add('shake');
+    }
+
+    updateUI() {
+        const hpBar = document.getElementById(`${this.prefix}-hp-bar`);
+        const hpText = document.getElementById(`${this.prefix}-hp`);
+        const maxHpText = document.getElementById(`${this.prefix}-max-hp`);
+
+        if (hpBar && hpText) {
+            const percentage = (this.hp / this.maxHp) * 100;
+            hpBar.style.width = `${percentage}%`;
+            hpText.textContent = this.hp;
+            if (maxHpText) maxHpText.textContent = this.maxHp;
+
+            // Color change
+            if (percentage < 30) hpBar.style.backgroundColor = 'var(--hp-low)';
+            else if (percentage < 60) hpBar.style.backgroundColor = 'var(--hp-mid)';
+            else hpBar.style.backgroundColor = 'var(--hp-high)';
         }
     }
 
-    playTone(freq, type, duration, startTime = 0) {
-        if (!this.initialized) this.init();
-        if (this.ctx.state === 'suspended') this.ctx.resume();
+    showDamageNumber(amount) {
+        const overlay = document.getElementById(`${this.prefix}-damage`);
+        const damageEl = document.createElement('div');
+        damageEl.classList.add('damage-pop');
+        damageEl.textContent = `-${amount}`;
+        overlay.appendChild(damageEl);
 
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, this.ctx.currentTime + startTime);
-
-        gain.gain.setValueAtTime(0.1, this.ctx.currentTime + startTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + startTime + duration);
-
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.start(this.ctx.currentTime + startTime);
-        osc.stop(this.ctx.currentTime + startTime + duration);
-    }
-
-    playCorrect(combo) {
-        // Success chord (C major-ish)
-        this.playTone(523.25, 'sine', 0.1, 0); // C5
-        this.playTone(659.25, 'sine', 0.1, 0.05); // E5
-
-        // Pitch goes up with combo
-        if (combo > 1) {
-            const bonusPitch = Math.min(combo * 50, 500);
-            this.playTone(1046.5 + bonusPitch, 'triangle', 0.2, 0.1);
-        }
-    }
-
-    playWrong() {
-        // Dissonant low tone
-        this.playTone(150, 'sawtooth', 0.2, 0);
-        this.playTone(142, 'sawtooth', 0.2, 0.05);
+        setTimeout(() => {
+            damageEl.remove();
+        }, 1000);
     }
 }
 
 class Game {
     constructor() {
-        this.audio = new AudioController();
-        this.combo = 0;
+        console.log("Game Initializing...");
+
+        this.hero = new Entity("勇者", 100, "hero");
+        this.level = 1;
         this.score = 0;
-        this.timeLeft = 60;
-        this.isPlaying = false;
-        this.timerInterval = null;
-        this.currentProblem = {};
-        this.userInput = "";
+        this.currentProblem = null;
+        this.problemStartTime = 0;
+        this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
+        // Message queue for auto-scrolling log
+        this.messageQueue = [];
+        this.isDisplayingMessage = false;
 
-        // DOM Elements
-        this.screens = {
-            start: document.getElementById('start-screen'),
-            game: document.getElementById('game-screen'),
-            result: document.getElementById('result-screen'),
-            ranking: document.getElementById('ranking-screen')
-        };
-        this.scoreEl = document.getElementById('score');
-        this.timerEl = document.getElementById('timer');
-        this.equationEl = document.getElementById('equation');
-        this.finalScoreEl = document.getElementById('final-score');
-        this.feedbackEl = document.getElementById('feedback');
-        this.comboEl = document.getElementById('combo-display');
+        // Initial Monster
+        this.spawnMonster();
 
-
-        // High Score Elements
-        this.playerNameInput = document.getElementById('player-name');
-        this.saveScoreBtn = document.getElementById('save-score-btn');
-        this.rankingListEl = document.getElementById('ranking-list');
-        this.restartBtn = document.getElementById('restart-btn');
-
-        // Bind events
-        document.getElementById('start-btn').addEventListener('click', () => this.start());
-        document.getElementById('ranking-btn').addEventListener('click', () => this.showRanking());
-        document.getElementById('back-home-btn').addEventListener('click', () => this.reset());
-
-        this.saveScoreBtn.addEventListener('click', () => this.saveScoreHandler());
-        this.restartBtn.addEventListener('click', () => {
-            this.reset();
-        });
-
-        // Input setup
-        this.setupInputs();
+        this.setupEventListeners();
+        this.queueMessage("バトル カイシ！");
     }
 
-    setupInputs() {
-        // On-screen buttons
-        document.querySelectorAll('.num-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const val = e.target.dataset.val;
-                const action = e.target.dataset.action;
+    playSound(type) {
+        if (this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume();
+        }
 
-                if (action === 'delete') {
-                    this.handleInput('Backspace');
-                } else if (action === 'enter') {
-                    this.handleInput('Enter');
-                } else if (val !== undefined) {
-                    this.handleInput(val);
-                }
-            });
-        });
+        const osc = this.audioCtx.createOscillator();
+        const gainNode = this.audioCtx.createGain();
 
-        // Keyboard
-        document.addEventListener('keydown', (e) => {
-            if (this.isPlaying) {
-                if ((e.key >= '0' && e.key <= '9') || e.key === 'Backspace' || e.key === 'Enter') {
-                    this.handleInput(e.key);
-                }
-            }
-        });
-    }
+        osc.connect(gainNode);
+        gainNode.connect(this.audioCtx.destination);
 
-    handleInput(key) {
-        if (!this.isPlaying) return;
+        const now = this.audioCtx.currentTime;
 
-        if (key === 'Enter') {
-            this.checkAnswer();
-        } else if (key === 'Backspace') {
-            this.userInput = this.userInput.slice(0, -1);
-            this.updateDisplay();
-        } else {
-            // Limit input length to 3 digits
-            if (this.userInput.length < 3) {
-                this.userInput += key;
-                this.updateDisplay();
-            }
+        if (type === 'attack') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+            gainNode.gain.setValueAtTime(0.1, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } else if (type === 'correct') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(600, now);
+            osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+            gainNode.gain.setValueAtTime(0.1, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now);
+            osc.stop(now + 0.3);
+        } else if (type === 'wrong') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(100, now);
+            osc.frequency.linearRampToValueAtTime(50, now + 0.3);
+            gainNode.gain.setValueAtTime(0.1, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now);
+            osc.stop(now + 0.3);
+        } else if (type === 'levelup') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.setValueAtTime(600, now + 0.1);
+            osc.frequency.setValueAtTime(800, now + 0.2);
+            gainNode.gain.setValueAtTime(0.1, now);
+            gainNode.gain.linearRampToValueAtTime(0, now + 0.6);
+            osc.start(now);
+            osc.stop(now + 0.6);
+        } else if (type === 'gameclear') {
+            osc.type = 'sine';
+            // Victory Fanfare
+            osc.frequency.setValueAtTime(523.25, now); // C
+            osc.frequency.setValueAtTime(523.25, now + 0.2);
+            osc.frequency.setValueAtTime(523.25, now + 0.4);
+            osc.frequency.setValueAtTime(659.25, now + 0.6); // E
+            osc.frequency.setValueAtTime(783.99, now + 0.8); // G
+            osc.frequency.setValueAtTime(1046.50, now + 1.2); // High C
+
+            gainNode.gain.setValueAtTime(0.2, now);
+            gainNode.gain.linearRampToValueAtTime(0, now + 2.0);
+
+            osc.start(now);
+            osc.stop(now + 2.0);
         }
     }
 
-    start() {
-        // Initialize Audio Context on user interaction
-        this.audio.init();
+    spawnMonster() {
+        const isBoss = this.level % 5 === 0;
+        const hp = isBoss ? (50 + this.level * 15) : (20 + (this.level * 10));
 
-        this.score = 0;
-        this.combo = 0;
-        this.timeLeft = 60;
-        this.isPlaying = true;
-        this.userInput = "";
+        const namePrefix = isBoss ? "【BOSS】" : "";
+        this.monster = new Entity(`${namePrefix}モンスター Lv.${this.level}`, hp, "monster");
 
-        this.updateScore();
-        this.updateTimer();
+        // Update Monster Name UI
+        const nameEl = document.getElementById('monster-name');
+        nameEl.textContent = this.monster.name;
+        nameEl.style.color = isBoss ? '#ff4757' : '#ffffff'; // Red text for boss
 
-        this.switchScreen('game');
-        this.nextProblem();
+        // Random Monster Emoji
+        const emojis = ['👾', '🐉', '🦖', '👹', '👻', '🤖', '🦇', '💀', '👽'];
+        const bossEmojis = ['👺', '🐲', '🧛', '🧟', '🦈'];
 
-        this.timerInterval = setInterval(() => {
-            this.timeLeft--;
-            this.updateTimer();
-            if (this.timeLeft <= 0) {
-                this.end();
-            }
-        }, 1000);
-    }
+        const list = isBoss ? bossEmojis : emojis;
+        const randomEmoji = list[Math.floor(Math.random() * list.length)];
 
-    reset() {
-        this.switchScreen('start');
-    }
+        const emojiEl = document.querySelector('.monster-emoji');
+        emojiEl.textContent = randomEmoji;
 
-    end() {
-        this.isPlaying = false;
-        clearInterval(this.timerInterval);
-        this.finalScoreEl.textContent = this.score;
-        this.playerNameInput.value = "";
-
-        this.saveScoreBtn.parentElement.classList.remove('hidden');
-        this.restartBtn.classList.add('hidden');
-        this.restartBtn.textContent = "ほぞん せずに もどる";
-        this.restartBtn.classList.remove('hidden');
-
-        this.switchScreen('result');
-    }
-
-    showRanking() {
-        this.switchScreen('ranking');
-        this.renderRanking();
-    }
-
-    saveScoreHandler() {
-        const name = this.playerNameInput.value.trim() || "名無しさん";
-
-        this.saveScoreBtn.disabled = true;
-        this.saveScoreBtn.textContent = "そうしんちゅう...";
-
-        // Use Compat Reference style
-        const scoresRef = db.ref('scores');
-        scoresRef.push({
-            name: name,
-            score: this.score,
-            date: new Date().toISOString()
-        })
-            .then(() => {
-                this.saveScoreBtn.disabled = false;
-                this.saveScoreBtn.textContent = "きろく する";
-                this.showRanking();
-            })
-            .catch((error) => {
-                console.error("Error saving score: ", error);
-                alert("エラー: スコアの保存に失敗しました。インターネット接続を確認してください。");
-                this.saveScoreBtn.disabled = false;
-                this.saveScoreBtn.textContent = "リトライ";
-            });
-    }
-
-    renderRanking() {
-        this.rankingListEl.innerHTML = '<div class="ranking-item" style="justify-content:center;">読み込み中...</div>';
-
-        const scoresRef = db.ref('scores');
-        // Order by score, get last 20 (highest, since default sort is ascending)
-        scoresRef.orderByChild('score').limitToLast(20).once('value')
-            .then((snapshot) => {
-                if (snapshot.exists()) {
-                    const data = snapshot.val();
-                    let scoreArray = [];
-                    Object.keys(data).forEach(key => {
-                        scoreArray.push(data[key]);
-                    });
-
-                    // Sort descending (b.score - a.score)
-                    scoreArray.sort((a, b) => b.score - a.score);
-
-                    let html = `
-                    <div class="ranking-item header">
-                        <span class="rank-num">#</span>
-                        <span style="flex:1; text-align:left; padding-left:1rem;">Name</span>
-                        <span>Score</span>
-                    </div>
-                `;
-
-                    scoreArray.forEach((s, index) => {
-                        const rank = index + 1;
-                        let rankClass = "";
-                        if (rank === 1) rankClass = "rank-1";
-                        if (rank === 2) rankClass = "rank-2";
-                        if (rank === 3) rankClass = "rank-3";
-
-                        html += `
-                        <div class="ranking-item ${rankClass}">
-                            <span class="rank-num">${rank}</span>
-                            <span style="flex:1; text-align:left; padding-left:1rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${s.name}</span>
-                            <span>${s.score}</span>
-                        </div>
-                    `;
-                    });
-
-                    this.rankingListEl.innerHTML = html;
-                } else {
-                    this.rankingListEl.innerHTML = `
-                    <div class="ranking-item header">
-                         <span class="rank-num">#</span>
-                         <span style="flex:1; text-align:left; padding-left:1rem;">Name</span>
-                         <span>Score</span>
-                    </div>
-                    <div class="ranking-item" style="justify-content:center; opacity:0.6;">まだ データが ないよ</div>
-                `;
-                }
-            })
-            .catch((error) => {
-                console.error("Error fetching ranking: ", error);
-                this.rankingListEl.innerHTML = `<div class="ranking-item" style="justify-content:center; color:#ef4444;">エラー: データを取得できませんでした</div>`;
-            });
-    }
-
-    switchScreen(screenName) {
-        Object.values(this.screens).forEach(el => el.classList.remove('active'));
-        this.screens[screenName].classList.add('active');
-    }
-
-    updateTimer() {
-        this.timerEl.textContent = this.timeLeft;
-        if (this.timeLeft <= 10) {
-            this.timerEl.style.color = '#ef4444';
+        // Boss Visual effect
+        if (isBoss) {
+            emojiEl.style.transform = "scale(1.5)";
+            this.playSound('wrong'); // Ominous entrance sound
         } else {
-            this.timerEl.style.color = '#ffffff';
+            emojiEl.style.transform = "scale(1)";
+        }
+
+        this.queueMessage(isBoss ? "きょうだいな ボス が あらわれた！" : `Lv.${this.level} の モンスター が あらわれた！`);
+    }
+
+    setupEventListeners() {
+        const attackBtn = document.getElementById('attack-btn');
+        const submitBtn = document.getElementById('submit-answer-btn');
+        const answerInput = document.getElementById('answer-input');
+        const saveScoreBtn = document.getElementById('save-score-btn');
+        const viewRankingBtn = document.getElementById('view-ranking-btn');
+        const closeRankingBtn = document.getElementById('close-ranking-btn');
+
+        if (attackBtn) attackBtn.addEventListener('click', () => this.startAttackPhase());
+        if (submitBtn) submitBtn.addEventListener('click', () => this.handleAnswer());
+
+        if (answerInput) {
+            answerInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') this.handleAnswer();
+            });
+        }
+
+        if (saveScoreBtn) {
+            saveScoreBtn.addEventListener('click', () => this.saveScore());
+        }
+
+        if (viewRankingBtn) {
+            viewRankingBtn.addEventListener('click', () => {
+                const modal = document.getElementById('ranking-only-modal');
+                modal.classList.remove('hidden');
+                this.fetchLeaderboard('standalone-leaderboard-list');
+                this.playSound('attack'); // Reuse sound for feedback
+            });
+        }
+
+        if (closeRankingBtn) {
+            closeRankingBtn.addEventListener('click', () => {
+                document.getElementById('ranking-only-modal').classList.add('hidden');
+            });
         }
     }
 
-    updateScore() {
-        this.scoreEl.textContent = this.score;
-        this.scoreEl.classList.remove('pop');
-        void this.scoreEl.offsetWidth;
-        this.scoreEl.classList.add('pop');
+    log(message) {
+        const logArea = document.getElementById('game-log');
+        const p = document.createElement('p');
+        p.textContent = message;
+
+        // Keep log clean (max 5 items)
+        if (logArea.children.length > 5) {
+            logArea.removeChild(logArea.lastChild);
+        }
+
+        logArea.prepend(p);
     }
 
-    nextProblem() {
-        this.userInput = "";
-        this.currentProblem = this.generateProblem();
-        this.renderEquation();
-        // Don't clear feedback immediately if showing combo, but for now logic is simple
-        // this.feedbackEl.textContent = ""; 
+    queueMessage(message) {
+        this.messageQueue.push(message);
+        if (!this.isDisplayingMessage) {
+            this.processMessageQueue();
+        }
     }
 
+    processMessageQueue() {
+        if (this.messageQueue.length === 0) {
+            this.isDisplayingMessage = false;
+            return;
+        }
 
-    generateProblem() {
-        const type = Math.random() < 0.5 ? 'left' : 'right';
-        const sum = Math.floor(Math.random() * 19) + 2;
-        const a = Math.floor(Math.random() * (sum - 1)) + 1;
-        const b = sum - a;
+        this.isDisplayingMessage = true;
+        const message = this.messageQueue.shift();
+        this.log(message);
+
+        // Wait 800ms before displaying next message
+        setTimeout(() => {
+            this.processMessageQueue();
+        }, 800);
+    }
+
+    startAttackPhase() {
+        this.playSound('attack');
+        this.currentProblem = this.generateProblem(this.level);
+        this.problemStartTime = Date.now(); // Record start time for speed bonus
+
+        const modal = document.getElementById('math-modal');
+        const problemText = document.getElementById('math-problem-text');
+
+        // Display Logic based on type
+        if (this.currentProblem.type === 'standard') {
+            problemText.textContent = `${this.currentProblem.a} - ${this.currentProblem.b} = ?`;
+        } else if (this.currentProblem.type === 'missing_minuend') {
+            problemText.textContent = `? - ${this.currentProblem.b} = ${this.currentProblem.result}`;
+        } else if (this.currentProblem.type === 'missing_subtrahend') {
+            problemText.textContent = `${this.currentProblem.a} - ? = ${this.currentProblem.result}`;
+        } else if (this.currentProblem.type === 'boss_3term') {
+            problemText.textContent = `${this.currentProblem.a} - ${this.currentProblem.b} - ${this.currentProblem.c} = ?`;
+        }
+
+        modal.classList.remove('hidden');
+        const input = document.getElementById('answer-input');
+        input.value = '';
+        input.focus();
+    }
+
+    generateProblem(level) {
+        // Boss Level Logic (Every 5th level)
+        if (level % 5 === 0) {
+            return this.generateBossProblem(level);
+        }
+
+        // Standard Levels
+        let type = 'standard';
+
+        // Introduce variety starting Level 5
+        if (level >= 5) {
+            const roll = Math.random();
+            if (roll < 0.33) type = 'missing_minuend';
+            else if (roll < 0.66) type = 'missing_subtrahend';
+        }
+
+        let a, b;
+
+        // Difficulty Logic
+        if (level <= 2) {
+            a = Math.floor(Math.random() * 10) + 1; // 1-10
+            b = Math.floor(Math.random() * a);
+        } else if (level <= 4) {
+            a = Math.floor(Math.random() * 20) + 5; // 5-24
+            b = Math.floor(Math.random() * (a / 2)) + 1;
+        } else if (level <= 9) {
+            a = Math.floor(Math.random() * 40) + 10;
+            b = Math.floor(Math.random() * 20) + 5;
+            if (b >= a) b = a - 1;
+        } else {
+            a = Math.floor(Math.random() * 90) + 10; // 10-99
+            b = Math.floor(Math.random() * 50) + 5;
+            if (b >= a) b = a - 1;
+        }
+
+        const exactAnswer = a - b;
+
+        // Return object structure
+        if (type === 'standard') {
+            return { type, a, b, answer: exactAnswer };
+        } else if (type === 'missing_minuend') {
+            // ? - b = result -> Answer is a
+            return { type, b, result: exactAnswer, answer: a };
+        } else if (type === 'missing_subtrahend') {
+            // a - ? = result -> Answer is b
+            return { type, a, result: exactAnswer, answer: b };
+        }
+    }
+
+    generateBossProblem(level) {
+        // 3-term subtraction: A - B - C = ?
+        // Ensure result is positive
+        const a = Math.floor(Math.random() * 30) + (level * 2);
+        const b = Math.floor(Math.random() * (a / 3)) + 1;
+        const c = Math.floor(Math.random() * (a / 3)) + 1;
 
         return {
-            a: a,
-            b: b,
-            c: sum,
-            hidden: type
+            type: 'boss_3term',
+            a, b, c,
+            answer: a - b - c
         };
     }
 
-    renderEquation() {
-        const { a, b, c, hidden } = this.currentProblem;
-        let html = '';
+    handleAnswer() {
+        const input = document.getElementById('answer-input');
+        const val = parseInt(input.value);
 
-        if (hidden === 'left') {
-            html = `<span class="blank">?</span> <span>+</span> <span>${b}</span> <span>=</span> <span>${c}</span>`;
+        if (isNaN(val)) return; // Do nothing if empty
+
+        const modal = document.getElementById('math-modal');
+        modal.classList.add('hidden');
+
+        if (val === this.currentProblem.answer) {
+            this.onCorrectAnswer();
         } else {
-            html = `<span>${a}</span> <span>+</span> <span class="blank">?</span> <span>=</span> <span>${c}</span>`;
+            this.onWrongAnswer(val);
         }
-
-        this.equationEl.innerHTML = html;
-        this.updateDisplay();
     }
 
-    updateDisplay() {
-        const blankEl = this.equationEl.querySelector('.blank');
-        if (blankEl) {
-            blankEl.textContent = this.userInput === "" ? "?" : this.userInput;
+    onCorrectAnswer() {
+        this.playSound('correct');
 
-            if (this.userInput !== "") {
-                blankEl.style.color = '#ffffff';
+        // Calculate Speed Bonus
+        const timeTakenSec = (Date.now() - this.problemStartTime) / 1000;
+        const maxTime = 10; // 10 seconds to get bonus
+        // faster = higher score. Max 50 bonus.
+        const speedBonus = Math.max(0, Math.floor((maxTime - timeTakenSec) * 5));
+
+        const damage = 10 + Math.floor(Math.random() * 5); // 10-14 damage
+
+        this.queueMessage(`せいかい！ ${speedBonus}点ボーナス！`);
+        this.queueMessage(`${damage} のダメージ を あたえた！`);
+
+        // Add to score
+        this.score += 10 + speedBonus; // Base 10 + Bonus
+        document.getElementById('score-display').textContent = this.score;
+
+        this.monster.takeDamage(damage);
+        this.checkBattleState();
+    }
+
+    onWrongAnswer(wrongVal) {
+        this.playSound('wrong');
+        const damage = 5 + Math.floor(Math.random() * 5); // 5-9 damage
+        this.queueMessage(`ざんねん... せいかいは ${this.currentProblem.answer} だ。`);
+        this.queueMessage(`勇者 は ${damage} のダメージ を うけた！`);
+        this.hero.takeDamage(damage);
+        this.checkBattleState();
+    }
+
+    checkBattleState() {
+        if (this.monster.hp <= 0) {
+            // Win
+            setTimeout(() => {
+                // Check if this was the Final Boss (Level 10)
+                if (this.level >= 10) {
+                    this.gameClear();
+                } else {
+                    this.queueMessage("モンスター を たおした！");
+                    this.levelUp();
+                }
+            }, 1000);
+        } else if (this.hero.hp <= 0) {
+            // Lose
+            this.queueMessage("勇者 は たおれてしまった...");
+            this.playSound('wrong');
+            setTimeout(() => {
+                alert("ゲームオーバー... リロードして再挑戦しよう！");
+                location.reload();
+            }, 500);
+        }
+    }
+
+    levelUp() {
+        this.playSound('levelup');
+        this.level++;
+        document.getElementById('level-display').textContent = this.level;
+        this.score += 100;
+        document.getElementById('score-display').textContent = this.score;
+
+        setTimeout(() => {
+            this.spawnMonster();
+        }, 1500);
+    }
+
+    gameClear() {
+        this.playSound('gameclear');
+        this.queueMessage("🎉 すべての モンスター を たおした！ 🎉");
+
+        const modal = document.getElementById('ending-modal');
+        const scoreDisplay = document.getElementById('final-score-display');
+
+        // Bonus: Level Clear Bonus + HP Bonus
+        const clearBonus = 1000;
+        const hpBonus = this.hero.hp * 10;
+
+        this.queueMessage(`HPボーナス: ${hpBonus}点！`);
+        this.score += clearBonus + hpBonus;
+        scoreDisplay.textContent = this.score;
+
+        modal.classList.remove('hidden');
+    }
+
+    // --- Firebase Ranking Logic (v8 Compat) ---
+    async saveScore() {
+        const nameInput = document.getElementById('player-name');
+        const name = nameInput.value.trim() || "ななし";
+        const score = this.score;
+
+        if (!name) return;
+
+        // Visual feedback
+        const btn = document.getElementById('save-score-btn');
+        btn.textContent = "ほうこく中...";
+        btn.disabled = true;
+
+        try {
+            // firebase.database() is global now
+            const scoresRef = db.ref('scores');
+            await scoresRef.push({
+                name: name,
+                score: score,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+
+            // Hide input, Show Leaderboard
+            document.getElementById('ranking-input-area').classList.add('hidden');
+            document.getElementById('ranking-board').classList.remove('hidden');
+            this.fetchLeaderboard();
+
+        } catch (error) {
+            console.error("Error saving score: ", error);
+            btn.textContent = "エラーが発生しました";
+            alert("スコアの保存に失敗しました...");
+        }
+    }
+
+    async fetchLeaderboard(targetListId = 'leaderboard-list') {
+        const list = document.getElementById(targetListId);
+        if (!list) return;
+
+        list.innerHTML = "<li>ロード中...</li>";
+
+        try {
+            // v8 syntax: orderByChild().limitToLast()
+            const scoresRef = db.ref('scores');
+            const snapshot = await scoresRef.orderByChild('score').limitToLast(10).once('value');
+
+            if (snapshot.exists()) {
+                const data = [];
+                snapshot.forEach((childSnapshot) => {
+                    data.push(childSnapshot.val());
+                });
+
+                // Reverse to show highest first
+                data.reverse();
+
+                list.innerHTML = ""; // Clear loader
+                data.forEach((entry, index) => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<span>${index + 1}. ${entry.name}</span> <span>${entry.score} pts</span>`;
+                    list.appendChild(li);
+                });
             } else {
-                blankEl.style.color = '#ffeb3b';
+                list.innerHTML = "<li>ランキングデータがありません</li>";
             }
+        } catch (error) {
+            console.error("Error fetching leaderboard: ", error);
+            list.innerHTML = "<li>読み込みエラー</li>";
         }
-    }
-
-    checkAnswer() {
-        if (this.userInput === "") return;
-
-        const val = parseInt(this.userInput, 10);
-        let correctVal;
-
-        if (this.currentProblem.hidden === 'left') {
-            correctVal = this.currentProblem.a;
-        } else {
-            correctVal = this.currentProblem.b;
-        }
-
-        if (val === correctVal) {
-            // Correct
-            this.combo++;
-
-            // Score calculation: Base 10 + (Combo * 2)
-            const pts = 10 + (this.combo > 1 ? (this.combo - 1) * 2 : 0);
-            this.score += pts;
-
-            this.updateScore();
-            this.showFeedback(true);
-            this.audio.playCorrect(this.combo);
-            this.nextProblem();
-        } else {
-            // Incorrect
-            this.combo = 0;
-            this.showFeedback(false);
-            this.audio.playWrong();
-            this.shakeScreen();
-            this.userInput = "";
-            this.updateDisplay();
-        }
-    }
-
-    showFeedback(isCorrect) {
-        if (isCorrect) {
-            this.feedbackEl.textContent = ""; // Clear old
-            if (this.combo > 1) {
-                this.comboEl.textContent = `${this.combo} COMBO!`;
-                this.comboEl.classList.remove('pop-combo');
-                void this.comboEl.offsetWidth;
-                this.comboEl.classList.add('pop-combo');
-
-                // Colors change with higher combos
-                if (this.combo >= 5) this.comboEl.style.color = '#ff00ff'; // Magenta
-                else if (this.combo >= 3) this.comboEl.style.color = '#00ffff'; // Cyan
-                else this.comboEl.style.color = '#ffd700'; // Gold
-            } else {
-                this.comboEl.textContent = "";
-            }
-        } else {
-            this.comboEl.textContent = "";
-            this.feedbackEl.textContent = "ざんねん！";
-            this.feedbackEl.style.color = '#ef4444';
-        }
-    }
-
-    shakeScreen() {
-        this.equationEl.classList.add('shake');
-        setTimeout(() => this.equationEl.classList.remove('shake'), 400);
     }
 }
 
-// Initialize game
-document.addEventListener('DOMContentLoaded', () => {
+// Start Game
+window.addEventListener('DOMContentLoaded', () => {
     new Game();
 });

@@ -4,110 +4,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>あなあき たしざん</title>
+    <title>引き算の勇者 - Calculation Quest</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&family=Outfit:wght@400;700;900&display=swap"
+        href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;900&family=Press+Start+2P&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <div class="background-animation"></div>
 
-    <main class="game-container">
-        <!-- Start Screen -->
-        <section id="start-screen" class="screen active">
+    <div class="game-container">
+        <header class="game-header">
+            <div class="level-indicator">LEVEL <span id="level-display">1</span></div>
+            <button id="view-ranking-btn" class="mini-btn">👑 ランキング</button>
+            <div class="score-indicator">SCORE: <span id="score-display">0</span></div>
+        </header>
 
-            <h1 class="title">こたえをさがせ</h1>
-            <p class="description">６０びょう で なんてん とれる かな？</p>
-            <div class="button-group">
-                <button id="start-btn" class="btn primary-btn">スタート</button>
-                <button id="ranking-btn" class="btn secondary-btn">ランキング</button>
+        <main class="battle-arena">
+            <!-- Monster Area -->
+            <div class="entity-zone monster-zone">
+                <div class="hp-bar-container">
+                    <div class="hp-bar-fill" id="monster-hp-bar" style="width: 100%;"></div>
+                    <span class="hp-text"><span id="monster-hp">100</span> / <span id="monster-max-hp">100</span></span>
+                </div>
+                <div class="entity-visual" id="monster-visual">
+                    <div class="monster-emoji">👾</div>
+                </div>
+                <div class="entity-name" id="monster-name">スライム</div>
+                <div class="damage-overlay" id="monster-damage"></div>
             </div>
+
+            <!-- Hero Area -->
+            <div class="entity-zone hero-zone">
+                <div class="damage-overlay" id="hero-damage"></div>
+                <div class="entity-visual" id="hero-visual">
+                    <div class="hero-emoji">🗡️</div>
+                </div>
+                <div class="hp-bar-container">
+                    <div class="hp-bar-fill hero-hp" id="hero-hp-bar" style="width: 100%;"></div>
+                    <span class="hp-text"><span id="hero-hp">100</span> / <span id="hero-max-hp">100</span></span>
+                </div>
+                <div class="entity-name">ゆうしゃ (あなた)</div>
+            </div>
+        </main>
+
+        <section class="game-log" id="game-log">
+            <p>モンスター が あらわれた！</p>
         </section>
 
-        <!-- Game Screen -->
-        <section id="game-screen" class="screen">
-            <header class="game-header">
-                <div class="score-box">
-                    <span class="label">スコア</span>
-                    <span id="score">0</span>
-                </div>
-                <div class="timer-box">
-                    <span class="label">タイム</span>
-                    <span id="timer">60</span>
-                </div>
-            </header>
+        <footer class="control-panel">
+            <button id="attack-btn" class="action-btn">こうげき (計算)</button>
+        </footer>
+    </div>
 
-            <div class="problem-area">
-                <div class="equation" id="equation">
-                    <!-- Example: <span>5</span> + <span class="blank">?</span> = <span>12</span> -->
-                </div>
-                <div class="combo-display" id="combo-display"></div>
-                <div class="feedback" id="feedback"></div>
+    <!-- Math Modal -->
+    <div class="modal-overlay hidden" id="math-modal">
+        <div class="modal-content">
+            <h2>もんだい！</h2>
+            <div class="math-problem" id="math-problem-text">10 - 3 = ?</div>
+            <div class="answer-input-container">
+                <input type="number" id="answer-input" placeholder="答え" autocomplete="off">
+                <button id="submit-answer-btn">決定</button>
+            </div>
+            <p class="modal-hint">せいかいして ダメージを あたえよう！</p>
+        </div>
+    </div>
 
+    <!-- Ending Modal -->
+    <div class="modal-overlay hidden" id="ending-modal">
+        <div class="modal-content ending-content">
+            <h1>🎉 GAME CLEAR! 🎉</h1>
+            <div class="ending-visual">🏆</div>
+            <p>おめでとう！<br>すべての モンスター を<br>たおした！</p>
+            <p class="final-score">SCORE: <span id="final-score-display">0</span></p>
+
+            <!-- Ranking UI -->
+            <div id="ranking-input-area">
+                <input type="text" id="player-name" placeholder="なまえを いれてね" maxlength="10">
+                <button id="save-score-btn" class="action-btn save-btn">ランキングに ほうこく</button>
             </div>
 
-            <div class="input-area">
-                <div class="numpad">
-                    <button class="num-btn" data-val="7">7</button>
-                    <button class="num-btn" data-val="8">8</button>
-                    <button class="num-btn" data-val="9">9</button>
-                    <button class="num-btn" data-val="4">4</button>
-                    <button class="num-btn" data-val="5">5</button>
-                    <button class="num-btn" data-val="6">6</button>
-                    <button class="num-btn" data-val="1">1</button>
-                    <button class="num-btn" data-val="2">2</button>
-                    <button class="num-btn" data-val="3">3</button>
-                    <button class="num-btn" data-val="0">0</button>
-                    <button class="num-btn action-btn delete-btn" data-action="delete">⌫</button>
-                    <button class="num-btn action-btn enter-btn" data-action="enter">けってい</button>
-                </div>
+            <div id="ranking-board" class="hidden">
+                <h3>👑 ランキング TOP 10 👑</h3>
+                <ul id="leaderboard-list" class="leaderboard-style">
+                    <!-- Scores will be injected here -->
+                </ul>
+                <button onclick="location.reload()" class="action-btn restart-btn">さいしょから</button>
             </div>
-            <p class="hint">キーボードも使えるよ！</p>
-        </section>
+        </div>
+    </div>
 
-        <!-- Result Screen -->
-        <section id="result-screen" class="screen">
-            <h2 class="result-title">おしまい！</h2>
-            <div class="final-score-box">
-                <p class="score-label">さいしゅう スコア</p>
-                <p id="final-score" class="big-score">0</p>
-            </div>
+    <!-- Standalone Ranking Modal -->
+    <div class="modal-overlay hidden" id="ranking-only-modal">
+        <div class="modal-content">
+            <h3>👑 ランキング TOP 10 👑</h3>
+            <ul id="standalone-leaderboard-list" class="leaderboard-style">
+                <!-- Scores will be injected here -->
+            </ul>
+            <button id="close-ranking-btn" class="action-btn">とじる</button>
+        </div>
+    </div>
 
-            <div class="save-score-area">
-                <input type="text" id="player-name" placeholder="なまえ を いれてね" maxlength="8">
-                <button id="save-score-btn" class="btn primary-btn small-btn">きろく する</button>
-            </div>
+    <!-- Firebase SDK (v8 compat for local file execution) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-            <button id="restart-btn" class="btn secondary-btn text-btn hidden">もういちど あそぶ</button>
-        </section>
-
-        <!-- Ranking Screen -->
-        <section id="ranking-screen" class="screen">
-            <h2 class="title">ランキング</h2>
-            <div class="ranking-list" id="ranking-list">
-                <!-- Javascript will populate this -->
-                <div class="ranking-item header">
-                    <span>じゅんい</span>
-                    <span>なまえ</span>
-                    <span>スコア</span>
-                </div>
-            </div>
-            <button id="back-home-btn" class="btn secondary-btn">もどる</button>
-        </section>
-    </main>
-
-    <!-- Firebase Compat Libraries (for running locally without a server) -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
     <script src="script.js"></script>
-
-
-
 </body>
 
 </html>

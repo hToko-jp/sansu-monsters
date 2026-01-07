@@ -1,21 +1,10 @@
-// Firebase Configuration
-// This file contains the connection settings for your Firebase project.
+// Actual Firebase Configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyDhePsbzObaE91wzG0cKNhDpXm1xmdK_o4",
-    authDomain: "fir-pro-babfd.firebaseapp.com",
-    projectId: "fir-pro-babfd",
-    storageBucket: "fir-pro-babfd.firebasestorage.app",
-    messagingSenderId: "517736474622",
-    appId: "1:517736474622:web:a6702bbf7007a591f8c2af",
-    measurementId: "G-83309CP6R5",
-    databaseURL: "https://fir-pro-babfd-default-rtdb.firebaseio.com/"
+    apiKey: "AIzaSyB-RIVd3JOk6wpI7O90-HuhZIr-vvuxD7w",
+    authDomain: "sansu-monster.firebaseapp.com",
+    projectId: "sansu-monster",
+    storageBucket: "sansu-monster.firebasestorage.app",
+    messagingSenderId: "421981273412",
+    appId: "1:421981273412:web:4594932bf0e8c6f63a2b11",
+    measurementId: "G-L6JD4MKGEX"
 };
-
-// Initialize Firebase
-if (typeof firebase !== 'undefined') {
-    if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-    }
-} else {
-    console.error("Firebase SDK not loaded!");
-}
