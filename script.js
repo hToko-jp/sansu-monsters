@@ -221,7 +221,7 @@ class Game {
         nameEl.style.color = isBoss ? '#ff4757' : '#ffffff'; // Red text for boss
 
         // Random Monster Emoji
-        const emojis = ['👾', '🐉', '🦖', '👹', '👻', '🤖', '🦇', '💀', '👽'];
+        const emojis = ['👾', '🐉', '🦖', '👹', '👻', '🤖', '🦇', '💀', '👽', '🦂', '🐍', '🕷️', '🎃', '🗿'];
         const bossEmojis = ['👺', '🐲', '🧛', '🧟', '🦈'];
 
         const list = isBoss ? bossEmojis : emojis;
