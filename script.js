@@ -93,21 +93,86 @@ class Game {
         const now = this.audioCtx.currentTime;
 
         if (type === 'attack') {
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(150, now);
-            osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
-            gainNode.gain.setValueAtTime(0.1, now);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-            osc.start(now);
-            osc.stop(now + 0.1);
+            // Layer 1: Sharp Impact (The "Bashi" / Slap)
+            const bufferSize = this.audioCtx.sampleRate * 0.05;
+            const buffer = this.audioCtx.createBuffer(1, bufferSize, this.audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+
+            const noiseSource = this.audioCtx.createBufferSource();
+            noiseSource.buffer = buffer;
+
+            const filter = this.audioCtx.createBiquadFilter();
+            filter.type = 'highpass';
+            filter.frequency.setValueAtTime(1000, now);
+
+            const noiseGain = this.audioCtx.createGain();
+            noiseGain.gain.setValueAtTime(0.4, now); // Stronger impact
+            noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.04);
+
+            noiseSource.connect(filter);
+            filter.connect(noiseGain);
+            noiseGain.connect(this.audioCtx.destination);
+            noiseSource.start(now);
+            noiseSource.stop(now + 0.05);
+
+            // Layer 2: Deep Thud (Weight)
+            const punchOsc = this.audioCtx.createOscillator();
+            const punchGain = this.audioCtx.createGain();
+            punchOsc.type = 'triangle';
+            punchOsc.frequency.setValueAtTime(120, now);
+            punchOsc.frequency.exponentialRampToValueAtTime(40, now + 0.08);
+            punchGain.gain.setValueAtTime(0.4, now);
+            punchGain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+
+            punchOsc.connect(punchGain);
+            punchGain.connect(this.audioCtx.destination);
+            punchOsc.start(now);
+            punchOsc.stop(now + 0.08);
         } else if (type === 'correct') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(600, now);
-            osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
-            gainNode.gain.setValueAtTime(0.1, now);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-            osc.start(now);
-            osc.stop(now + 0.3);
+            // Layer 1: Lightning Crack (High Noise)
+            const bufferSize = this.audioCtx.sampleRate * 0.1;
+            const buffer = this.audioCtx.createBuffer(1, bufferSize, this.audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+            const noiseSource = this.audioCtx.createBufferSource();
+            noiseSource.buffer = buffer;
+            const noiseFilter = this.audioCtx.createBiquadFilter();
+            noiseFilter.type = 'highpass';
+            noiseFilter.frequency.setValueAtTime(2000, now);
+
+            const noiseGain = this.audioCtx.createGain();
+            noiseGain.gain.setValueAtTime(0.3, now);
+            noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+
+            noiseSource.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(this.audioCtx.destination);
+            noiseSource.start(now);
+
+            // Layer 2: Thunder Roar (Zudoon / Low Sweep)
+            const thunderOsc = this.audioCtx.createOscillator();
+            const thunderGain = this.audioCtx.createGain();
+            thunderOsc.type = 'sawtooth'; // Rougher texture
+            thunderOsc.frequency.setValueAtTime(120, now);
+            thunderOsc.frequency.exponentialRampToValueAtTime(30, now + 0.8);
+
+            const lowPass = this.audioCtx.createBiquadFilter();
+            lowPass.type = 'lowpass';
+            lowPass.frequency.setValueAtTime(300, now);
+
+            thunderGain.gain.setValueAtTime(0.5, now);
+            thunderGain.gain.exponentialRampToValueAtTime(0.01, now + 1.2);
+
+            thunderOsc.connect(lowPass);
+            lowPass.connect(thunderGain);
+            thunderGain.connect(this.audioCtx.destination);
+
+            thunderOsc.start(now);
+            thunderOsc.stop(now + 1.2);
         } else if (type === 'wrong') {
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(100, now);
@@ -250,7 +315,6 @@ class Game {
     }
 
     startAttackPhase() {
-        this.playSound('attack');
         this.currentProblem = this.generateProblem(this.level);
         this.problemStartTime = Date.now(); // Record start time for speed bonus
 
